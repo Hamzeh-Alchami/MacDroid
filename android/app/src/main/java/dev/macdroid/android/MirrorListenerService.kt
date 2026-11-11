@@ -22,7 +22,7 @@ class MirrorListenerService : NotificationListenerService(), MirrorClient.Comman
         AppLog.i("Notification access active")
         MirrorClient.commandHandler = this
         activeNotifications?.forEach { seenKeys += it.key }
-        MirrorClient.connectIfConfigured()
+        MirrorService.startIfEnabled(this)
     }
 
     override fun onListenerDisconnected() {

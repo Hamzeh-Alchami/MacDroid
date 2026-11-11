@@ -6,6 +6,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.net.Uri
 import android.provider.Settings
 import android.widget.Button
 import android.widget.EditText
@@ -21,6 +23,7 @@ class MainActivity : Activity() {
     private lateinit var portInput: EditText
     private lateinit var codeInput: EditText
     private lateinit var logText: TextView
+    private lateinit var batteryText: TextView
     private lateinit var discovery: MacDiscovery
 
     private val stateListener: (MirrorClient.State) -> Unit = { renderState(it) }
@@ -37,6 +40,7 @@ class MainActivity : Activity() {
         portInput = findViewById(R.id.portInput)
         codeInput = findViewById(R.id.codeInput)
         logText = findViewById(R.id.logText)
+        batteryText = findViewById(R.id.batteryText)
 
         hostInput.setText(Prefs.host)
         portInput.setText(Prefs.port.toString())
@@ -49,9 +53,25 @@ class MainActivity : Activity() {
             Prefs.host = hostInput.text.toString()
             Prefs.port = portInput.text.toString().toIntOrNull() ?: Prefs.DEFAULT_PORT
             Prefs.code = codeInput.text.toString()
+            Prefs.enabled = true
             MirrorClient.connect()
+            MirrorService.startIfEnabled(this)
         }
-        findViewById<Button>(R.id.disconnectButton).setOnClickListener { MirrorClient.disconnect() }
+        findViewById<Button>(R.id.disconnectButton).setOnClickListener {
+            MirrorClient.disconnect()
+            MirrorService.stop(this)
+        }
+        findViewById<Button>(R.id.batteryButton).setOnClickListener {
+            val pm = getSystemService(PowerManager::class.java)
+            if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+                @Suppress("BatteryLife") // sideloaded companion app; staying connected is its whole job
+                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName"))
+                startActivity(intent)
+            } else {
+                // Already exempt: open app details so Samsung's "Unrestricted" setting is one tap away.
+                startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+            }
+        }
         findViewById<Button>(R.id.testButton).setOnClickListener {
             if (Build.VERSION.SDK_INT >= 33 &&
                 checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
@@ -88,11 +108,23 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         val granted = NotificationManagerCompat.getEnabledListenerPackages(this).contains(packageName)
+        renderBattery()
         listenerText.text = if (granted) {
             "✅ Notification access granted"
         } else {
             "⚠️ Notification access is off. If Android says it's a \"restricted setting\", open " +
                 "App info → ⋮ → Allow restricted settings, then try again."
+        }
+    }
+
+    private fun renderBattery() {
+        val exempt = getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
+        val samsung = Build.MANUFACTURER.equals("samsung", ignoreCase = true)
+        batteryText.text = buildString {
+            append(if (exempt) "✅ Battery optimization is off for MacDroid" else "⚠️ Android may cut the connection when the screen is off.")
+            if (samsung) {
+                append("\nSamsung: also open Settings → Battery → Background usage limits → Never sleeping apps, and add MacDroid.")
+            }
         }
     }
 

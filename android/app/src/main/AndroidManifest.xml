@@ -6,7 +6,13 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <!-- Lets mDNS (Bonjour) discovery receive multicast packets on some devices. -->
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
-    <!-- Only needed for the built-in test notification. -->
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+    <!-- Keeps the connection alive with the screen off. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Needed for the test notification and the "Mirroring to your Mac" status notification. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- Lets us resolve app names (e.g. "WhatsApp") for any app that has a launcher icon. -->
@@ -46,6 +52,11 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+
+        <service
+            android:name=".MirrorService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
 
         <receiver
             android:name=".TestNotification$ReplyReceiver"

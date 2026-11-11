@@ -34,7 +34,7 @@ object MirrorClient {
     private const val PROTOCOL_VERSION = 1
     private val main = Handler(Looper.getMainLooper())
     private val http = OkHttpClient.Builder()
-        .pingInterval(20, TimeUnit.SECONDS)
+        .pingInterval(25, TimeUnit.SECONDS)
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS)
         .build()
@@ -122,6 +122,30 @@ object MirrorClient {
 
     private val RECONNECT_TOKEN = Any()
 
+    /** Called when a network becomes available: retry right away instead of waiting out the backoff. */
+    fun onNetworkAvailable() {
+        main.post {
+            if (Prefs.enabled && Prefs.isConfigured && !isConnected && state != State.Connecting) {
+                AppLog.i("Network available, reconnecting")
+                backoffMs = 1_000L
+                connectNow()
+            }
+        }
+    }
+
+    private var wakeLock: android.os.PowerManager.WakeLock? = null
+
+    /**
+     * Keeps the CPU awake just long enough for the retry to run. Without this, a retry
+     * scheduled while the screen is off waits until the phone wakes up for another reason.
+     */
+    private fun holdWakeLock(ms: Long) {
+        val pm = appContext.getSystemService(android.os.PowerManager::class.java) ?: return
+        val lock = wakeLock ?: pm.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "MacDroid:reconnect")
+            .also { it.setReferenceCounted(false); wakeLock = it }
+        lock.acquire(ms)
+    }
+
     private fun scheduleReconnect(error: String) {
         socket = null
         if (!Prefs.enabled) {
@@ -131,6 +155,7 @@ object MirrorClient {
         val delay = backoffMs
         backoffMs = (backoffMs * 2).coerceAtMost(30_000L)
         state = State.Retrying(delay / 1000, error)
+        holdWakeLock(delay + 15_000L)
         main.postAtTime({ connectIfConfigured() }, RECONNECT_TOKEN, android.os.SystemClock.uptimeMillis() + delay)
     }
 
@@ -166,6 +191,7 @@ object MirrorClient {
                         val name = msg.optString("name", "Mac")
                         AppLog.i("Paired with $name")
                         iconsSent.clear()
+                        wakeLock?.takeIf { it.isHeld }?.release()
                         state = State.Connected(name)
                     }
                     "hello_rejected" -> {
