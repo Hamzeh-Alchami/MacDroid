@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds MacDroid.app with SwiftPM, so no Xcode project is needed.
-# You need Xcode or the Command Line Tools (`xcode-select --install`).
+# You need Xcode 14.1+ or the Command Line Tools (`xcode-select --install`).
 #   ./build.sh            -> build/MacDroid.app
 #   ./build.sh --install  -> also copies it to /Applications and launches it
 set -euo pipefail
@@ -9,7 +9,9 @@ cd "$(dirname "$0")"
 # Build with Apple's own toolchain in a clean environment. This avoids two common failures:
 #  - a swift.org toolchain (selected via TOOLCHAINS or PATH) mixed with Xcode's linker
 #  - "can't exec ld (Argument list too long)", caused by a very large shell environment
-DEV_DIR="$(xcode-select -p)"
+# Override with: DEVELOPER_DIR=/Library/Developer/CommandLineTools ./build.sh
+DEV_DIR="${DEVELOPER_DIR:-$(xcode-select -p)}"
+echo "Developer dir: $DEV_DIR"
 SWIFT=(env -i
     HOME="$HOME"
     USER="${USER:-$(id -un)}"
