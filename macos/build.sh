@@ -6,8 +6,21 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-swift build -c release
-BIN_DIR="$(swift build -c release --show-bin-path)"
+# Build with Apple's own toolchain in a clean environment. This avoids two common failures:
+#  - a swift.org toolchain (selected via TOOLCHAINS or PATH) mixed with Xcode's linker
+#  - "can't exec ld (Argument list too long)", caused by a very large shell environment
+DEV_DIR="$(xcode-select -p)"
+SWIFT=(env -i
+    HOME="$HOME"
+    USER="${USER:-$(id -un)}"
+    TMPDIR="${TMPDIR:-/tmp}"
+    PATH="/usr/bin:/bin:/usr/sbin:/sbin"
+    DEVELOPER_DIR="$DEV_DIR"
+    /usr/bin/xcrun swift)
+
+echo "Using: $("${SWIFT[@]}" --version 2>&1 | head -1)"
+"${SWIFT[@]}" build -c release
+BIN_DIR="$("${SWIFT[@]}" build -c release --show-bin-path)"
 
 APP="build/MacDroid.app"
 rm -rf "$APP"
