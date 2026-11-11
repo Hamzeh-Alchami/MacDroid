@@ -85,6 +85,12 @@ macOS is blocking MacDroid from the local network. The phone's connection arrive
    ```
    On the phone, keep the Mac's IP but set the port to **7320**. The relay forwards the connection to MacDroid over `127.0.0.1`, which the Local Network permission doesn't cover. Keep the Terminal window open while you use it.
 
+4. If MacDroid still can't answer, even over Tailscale, your Mac's security software is filtering it. Check **System Settings → Network → VPN & Filters**. Run the relay in the background at login so you don't need a Terminal window:
+   ```bash
+   tools/relay-agent.sh install     # also: status, uninstall
+   ```
+   On the phone, use port **7320**.
+
 To check from the Mac itself, run this. It should print `HTTP/1.1 101 Switching Protocols`:
 ```bash
 curl -i -m 5 -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Sec-WebSocket-Version: 13" -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" http://$(ipconfig getifaddr en0):7319/

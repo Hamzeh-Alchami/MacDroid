@@ -64,7 +64,8 @@ class MainActivity : Activity() {
 
         discovery = MacDiscovery(this) { name, host, port ->
             discoveryText.text = "Found \"$name\" at $host:$port"
-            if (hostInput.text.isNullOrBlank() || hostInput.text.toString() == Prefs.host) {
+            // Only auto-fill an empty address, so a manual setup (e.g. relay port 7320) sticks.
+            if (hostInput.text.isNullOrBlank()) {
                 hostInput.setText(host)
                 portInput.setText(port.toString())
             }
