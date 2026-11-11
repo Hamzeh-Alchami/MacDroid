@@ -70,6 +70,25 @@ On the phone:
 4. Tap **Send test notification**. A fake chat appears on the Mac. Reply from the banner and watch your reply appear in the phone's notification. **Mark as read** clears it on both devices.
 5. Now try a real message from WhatsApp, Telegram or Messages.
 
+## Troubleshooting
+
+### Phone log shows "Connection reset" about 10 seconds after "Connecting"
+macOS is blocking MacDroid from the local network. The phone's connection arrives, but MacDroid isn't allowed to answer it. The Mac menu's **Connection log** shows *"handshake … didn't finish in 10s"*.
+
+1. Open **System Settings → Privacy & Security → Local Network** and turn MacDroid on if it's listed.
+2. If MacDroid isn't listed, macOS never showed it the permission prompt. This is common with ad-hoc signed builds. Give it a stable signature:
+   - In Xcode, open **Settings → Accounts**, add your Apple ID (a free account is fine), select it, choose **Manage Certificates…**, then **+ → Apple Development**.
+   - Run `./build.sh --install` again. It picks up the certificate automatically ("Signing with: Apple Development: …"). Allow the Local Network prompt when it appears.
+3. Quick workaround without a certificate: start MacDroid from Terminal. It then shares Terminal's Local Network permission:
+   ```bash
+   pkill -x MacDroid; /Applications/MacDroid.app/Contents/MacOS/MacDroid &
+   ```
+
+To check from the Mac itself, run this. It should print `HTTP/1.1 101 Switching Protocols`:
+```bash
+curl -i -m 5 -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Sec-WebSocket-Version: 13" -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" http://$(ipconfig getifaddr en0):7319/
+```
+
 ## Phase 0 test checklist
 Please report back on each of these:
 - [ ] Test notification shows on the Mac

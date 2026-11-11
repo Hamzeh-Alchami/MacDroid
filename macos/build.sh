@@ -48,8 +48,22 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/MacDroid" "$APP/Contents/MacOS/MacDroid"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 
-# Ad-hoc signature: enough to run locally and use notifications. Distribution needs a real Developer ID.
-codesign --force --sign - "$APP"
+# Signing. macOS ties permissions (Local Network, Notifications) to the app's signature.
+# An ad-hoc signature changes on every build, and macOS may never show the Local Network
+# prompt for it, which leaves MacDroid unable to answer the phone. A free
+# "Apple Development" certificate gives a stable identity, so we use one when available.
+#   Override with: SIGN_IDENTITY="Apple Development: you@example.com (TEAMID)" ./build.sh
+SIGN_IDENTITY="${SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null \
+    | grep -E '"(Apple Development|Developer ID Application|Mac Developer)' \
+    | head -1 | sed -E 's/.*"(.*)"/\1/' || true)}"
+if [[ -n "$SIGN_IDENTITY" ]]; then
+    echo "Signing with: $SIGN_IDENTITY"
+    codesign --force --options runtime --sign "$SIGN_IDENTITY" "$APP"
+else
+    echo "WARNING: no Apple Development certificate found, using an ad-hoc signature."
+    echo "         macOS may block MacDroid from the local network. See README → Troubleshooting."
+    codesign --force --sign - "$APP"
+fi
 echo "Built $APP"
 
 if [[ "${1:-}" == "--install" ]]; then
