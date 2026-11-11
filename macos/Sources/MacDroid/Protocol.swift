@@ -44,6 +44,14 @@ enum Incoming {
     struct Posted: Decodable { let notification: MirroredNotification }
     struct Removed: Decodable { let key: String }
     struct ActionResult: Decodable { let requestId: String; let ok: Bool; let error: String? }
+    struct AppIcon: Decodable {
+        let packageName: String
+        let png: String
+        enum CodingKeys: String, CodingKey {
+            case png
+            case packageName = "package"
+        }
+    }
 }
 
 enum ProtocolInfo {

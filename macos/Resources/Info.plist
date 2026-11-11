@@ -8,6 +8,8 @@
     <string>MacDroid</string>
     <key>CFBundleDisplayName</key>
     <string>MacDroid</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundleExecutable</key>
     <string>MacDroid</string>
     <key>CFBundlePackageType</key>

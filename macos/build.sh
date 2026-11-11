@@ -47,6 +47,15 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/MacDroid" "$APP/Contents/MacOS/MacDroid"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
+
+# App icon: build AppIcon.icns from the 1024px PNG.
+ICONSET="$(mktemp -d)/AppIcon.iconset"
+mkdir -p "$ICONSET"
+for size in 16 32 128 256 512; do
+    sips -z $size $size Resources/AppIcon-1024.png --out "$ICONSET/icon_${size}x${size}.png" >/dev/null
+    sips -z $((size * 2)) $((size * 2)) Resources/AppIcon-1024.png --out "$ICONSET/icon_${size}x${size}@2x.png" >/dev/null
+done
+iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
 # Optional: BUNDLE_ID=dev.macdroid.mac2 ./build.sh --install
 # A new bundle ID makes macOS treat MacDroid as a brand-new app (fresh permission prompts).
 if [[ -n "${BUNDLE_ID:-}" ]]; then
@@ -76,6 +85,8 @@ if [[ "${1:-}" == "--install" ]]; then
     pkill -x MacDroid 2>/dev/null || true
     rm -rf /Applications/MacDroid.app
     cp -R "$APP" /Applications/
+    # Make Finder and Notification Center pick up the new icon.
+    /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f /Applications/MacDroid.app || true
     open /Applications/MacDroid.app
     echo "Installed and launched /Applications/MacDroid.app"
 fi

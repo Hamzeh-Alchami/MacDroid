@@ -45,6 +45,7 @@ class MirrorListenerService : NotificationListenerService(), MirrorClient.Comman
             AppLog.i("Could not read notification from ${sbn.packageName}: ${e.message}")
             return
         }
+        MirrorClient.sendIconIfNeeded(sbn.packageName) { AppIcons.pngBase64(this, sbn.packageName) }
         if (MirrorClient.send(json)) {
             val n = json.getJSONObject("notification")
             val tag = if (n.getBoolean("silent")) " (silent update)" else ""

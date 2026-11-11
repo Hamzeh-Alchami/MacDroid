@@ -45,6 +45,8 @@ object MirrorClient {
     private var generation = 0
     private var backoffMs = 1_000L
     private val listeners = mutableSetOf<(State) -> Unit>()
+    /** Packages whose icon the Mac already has on this connection. */
+    private val iconsSent = mutableSetOf<String>()
 
     var state: State = State.Disconnected
         private set(value) {
@@ -109,6 +111,15 @@ object MirrorClient {
         return ws.send(message.toString())
     }
 
+    /** Sends `app_icon` once per package per connection, before its first notification. */
+    fun sendIconIfNeeded(pkg: String, png: () -> String?) {
+        if (!isConnected || pkg in iconsSent) return
+        val data = png() ?: return
+        if (send(JSONObject().put("type", "app_icon").put("package", pkg).put("png", data))) {
+            iconsSent += pkg
+        }
+    }
+
     private val RECONNECT_TOKEN = Any()
 
     private fun scheduleReconnect(error: String) {
@@ -154,6 +165,7 @@ object MirrorClient {
                         backoffMs = 1_000L
                         val name = msg.optString("name", "Mac")
                         AppLog.i("Paired with $name")
+                        iconsSent.clear()
                         state = State.Connected(name)
                     }
                     "hello_rejected" -> {

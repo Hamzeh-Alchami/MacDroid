@@ -61,6 +61,12 @@ The action `id` is opaque to the Mac. It is echoed back to the phone unchanged. 
 
 `silent` is `true` when the latest message is the user's own reply (the app re-posting the notification after a reply) or when the app asked for alert-once on an update.
 
+### `app_icon`
+This is sent once per package per connection, just before that app's first `notification_posted`. It carries the app's launcher icon as a 128×128 PNG. The Mac caches it on disk and attaches it to that app's notifications.
+```jsonc
+{ "type": "app_icon", "package": "com.whatsapp", "png": "<base64 PNG>" }
+```
+
 ### `notification_removed`
 ```jsonc
 { "type": "notification_removed", "key": "0|com.whatsapp|1|xyz|10123" }

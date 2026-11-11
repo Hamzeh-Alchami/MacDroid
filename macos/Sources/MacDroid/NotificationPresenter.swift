@@ -23,6 +23,7 @@ final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate, O
             self?.center.removeDeliveredNotifications(withIdentifiers: [key])
         }
         server.onActionResult = { [weak self] in self?.handleResult($0) }
+        server.onAppIcon = { pkg, png in IconStore.save(png, for: pkg) }
     }
 
     func requestAuthorization() {
@@ -49,6 +50,11 @@ final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate, O
         content.threadIdentifier = n.conversationId ?? n.packageName
         content.userInfo = ["key": n.key]
         content.categoryIdentifier = registerCategory(for: n.actions)
+        // macOS always shows MacDroid's icon on the left; the source app's icon
+        // (e.g. WhatsApp) goes in as the thumbnail on the right.
+        if let attachment = IconStore.attachment(for: n.packageName) {
+            content.attachments = [attachment]
+        }
 
         let request = UNNotificationRequest(identifier: n.key, content: content, trigger: nil)
         // Categories register asynchronously. Reading them back first makes sure the

@@ -22,6 +22,7 @@ final class MirrorServer: ObservableObject {
     var onPosted: ((MirroredNotification) -> Void)?
     var onRemoved: ((String) -> Void)?
     var onActionResult: ((Incoming.ActionResult) -> Void)?
+    var onAppIcon: ((String, Data) -> Void)?
 
     let macName = Host.current().localizedName ?? "Mac"
 
@@ -268,6 +269,10 @@ final class MirrorServer: ObservableObject {
             guard let removed = try? decoder.decode(Incoming.Removed.self, from: data) else { return }
             recent.removeAll { $0.key == removed.key }
             onRemoved?(removed.key)
+        case "app_icon":
+            guard let icon = try? decoder.decode(Incoming.AppIcon.self, from: data),
+                  let png = Data(base64Encoded: icon.png) else { return }
+            onAppIcon?(icon.packageName, png)
         case "action_result":
             guard let result = try? decoder.decode(Incoming.ActionResult.self, from: data) else { return }
             onActionResult?(result)
