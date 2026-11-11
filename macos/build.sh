@@ -47,6 +47,12 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/MacDroid" "$APP/Contents/MacOS/MacDroid"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
+# Optional: BUNDLE_ID=dev.macdroid.mac2 ./build.sh --install
+# A new bundle ID makes macOS treat MacDroid as a brand-new app (fresh permission prompts).
+if [[ -n "${BUNDLE_ID:-}" ]]; then
+    /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BUNDLE_ID" "$APP/Contents/Info.plist"
+    echo "Bundle ID: $BUNDLE_ID"
+fi
 
 # Signing. macOS ties permissions (Local Network, Notifications) to the app's signature.
 # An ad-hoc signature changes on every build, and macOS may never show the Local Network
