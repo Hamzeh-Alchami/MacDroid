@@ -132,6 +132,7 @@ object MirrorClient {
         }
 
         override fun onOpen(webSocket: WebSocket, response: Response) {
+            AppLog.i("WebSocket open, sending pairing code")
             val hello = JSONObject()
                 .put("type", "hello")
                 .put("version", PROTOCOL_VERSION)
@@ -192,7 +193,8 @@ object MirrorClient {
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) = onMain {
             if (state is State.Rejected) return@onMain
-            AppLog.i("Connection failed: ${t.message ?: t.javaClass.simpleName}")
+            val http = response?.let { " (HTTP ${it.code})" } ?: ""
+            AppLog.i("Connection failed: ${t.message ?: t.javaClass.simpleName}$http")
             scheduleReconnect(t.message ?: "error")
         }
     }

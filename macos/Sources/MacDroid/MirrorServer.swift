@@ -14,6 +14,10 @@ final class MirrorServer: ObservableObject {
     @Published private(set) var phoneName: String?
     @Published private(set) var recent: [MirroredNotification] = []
     @Published private(set) var pairingCode: String
+    /// Recent connection events, newest first, shown in the menu for troubleshooting.
+    @Published private(set) var events: [String] = []
+    /// True when macOS blocks MacDroid from the local network (Privacy & Security → Local Network).
+    @Published private(set) var localNetworkDenied = false
 
     var onPosted: ((MirroredNotification) -> Void)?
     var onRemoved: ((String) -> Void)?
@@ -22,6 +26,12 @@ final class MirrorServer: ObservableObject {
     let macName = Host.current().localizedName ?? "Mac"
 
     private var listener: NWListener?
+    private var browser: NWBrowser?
+    private let timeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm:ss"
+        return f
+    }()
     private var connections: [ObjectIdentifier: NWConnection] = [:]
     /// The authenticated phone connection, if any.
     private var active: NWConnection?
@@ -38,7 +48,49 @@ final class MirrorServer: ObservableObject {
 
     // MARK: Lifecycle
 
+    func log(_ message: String) {
+        NSLog("MacDroid: %@", message)
+        events.insert("\(timeFormatter.string(from: Date()))  \(message)", at: 0)
+        if events.count > 40 { events.removeLast(events.count - 40) }
+    }
+
+    /// Browsing our own Bonjour type makes macOS ask for Local Network permission right
+    /// away, and tells us when it's denied (the browser waits with a PolicyDenied error).
+    private func checkLocalNetworkAccess() {
+        guard browser == nil else { return }
+        let b = NWBrowser(for: .bonjour(type: ProtocolInfo.bonjourType, domain: nil), using: .tcp)
+        b.stateUpdateHandler = { [weak self] state in
+            guard let self else { return }
+            switch state {
+            case .waiting(let error), .failed(let error):
+                if case .dns(let code) = error, code == -65570 { // kDNSServiceErr_PolicyDenied
+                    if !self.localNetworkDenied {
+                        self.localNetworkDenied = true
+                        self.log("Local Network access is OFF for MacDroid")
+                    }
+                } else {
+                    self.log("Bonjour browser: \(error.localizedDescription)")
+                }
+            case .ready:
+                if self.localNetworkDenied { self.log("Local Network access is now on") }
+                self.localNetworkDenied = false
+            default:
+                break
+            }
+        }
+        b.browseResultsChangedHandler = { [weak self] _, _ in
+            // Seeing results means local network traffic is allowed.
+            if self?.localNetworkDenied == true {
+                self?.localNetworkDenied = false
+                self?.log("Local Network access is now on")
+            }
+        }
+        b.start(queue: .main)
+        browser = b
+    }
+
     func start() {
+        checkLocalNetworkAccess()
         let ws = NWProtocolWebSocket.Options()
         ws.autoReplyPing = true
         ws.maximumMessageSize = 1 << 20
@@ -55,8 +107,10 @@ final class MirrorServer: ObservableObject {
                 switch state {
                 case .ready:
                     self.status = .listening
+                    self.log("Listening on port \(ProtocolInfo.port)")
                 case .failed(let error):
                     self.status = .failed(error.localizedDescription)
+                    self.log("Server failed: \(error.localizedDescription)")
                     self.listener?.cancel()
                     self.listener = nil
                     DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in self?.start() }
@@ -69,6 +123,7 @@ final class MirrorServer: ObservableObject {
             listener = l
         } catch {
             status = .failed(error.localizedDescription)
+            log("Could not start server: \(error.localizedDescription)")
         }
     }
 
@@ -106,10 +161,19 @@ final class MirrorServer: ObservableObject {
     private func accept(_ connection: NWConnection) {
         let id = ObjectIdentifier(connection)
         connections[id] = connection
+        let peer = MirrorServer.describe(connection.endpoint)
+        log("Incoming connection from \(peer)")
         connection.stateUpdateHandler = { [weak self, weak connection] state in
             guard let self, let connection else { return }
             switch state {
-            case .failed, .cancelled:
+            case .ready:
+                self.log("WebSocket open with \(peer), waiting for pairing code")
+            case .waiting(let error):
+                self.log("Connection from \(peer) waiting: \(error.localizedDescription)")
+            case .failed(let error):
+                self.log("Connection from \(peer) failed: \(error.localizedDescription)")
+                self.closed(connection)
+            case .cancelled:
                 self.closed(connection)
             default:
                 break
@@ -122,14 +186,20 @@ final class MirrorServer: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self, weak connection] in
             guard let self, let connection else { return }
             if self.active !== connection && self.connections[ObjectIdentifier(connection)] != nil {
+                if case .ready = connection.state {
+                    self.log("\(peer) never sent its pairing code, closing")
+                } else {
+                    self.log("WebSocket handshake with \(peer) didn't finish in 10s. Check Local Network permission.")
+                }
                 connection.cancel()
             }
         }
     }
 
     private func closed(_ connection: NWConnection) {
-        connections.removeValue(forKey: ObjectIdentifier(connection))
+        guard connections.removeValue(forKey: ObjectIdentifier(connection)) != nil else { return }
         if active === connection {
+            log("Phone disconnected")
             active = nil
             phoneName = nil
         }
@@ -172,11 +242,13 @@ final class MirrorServer: ObservableObject {
                 return
             }
             if hello.code == pairingCode {
+                log("Paired with \(hello.device ?? "phone")")
                 if let old = active { old.cancel() }
                 active = connection
                 phoneName = hello.device ?? "Android phone"
                 send(["type": "hello_ok", "version": ProtocolInfo.version, "name": macName], to: connection)
             } else {
+                log("Wrong pairing code from \(hello.device ?? "phone")")
                 send(["type": "hello_rejected", "reason": "bad_code"], to: connection) {
                     connection.cancel()
                 }
@@ -202,6 +274,13 @@ final class MirrorServer: ObservableObject {
         default:
             break // forward compatible: ignore unknown types
         }
+    }
+
+    private static func describe(_ endpoint: NWEndpoint) -> String {
+        if case .hostPort(let host, _) = endpoint {
+            return "\(host)".components(separatedBy: "%").first ?? "\(host)"
+        }
+        return "\(endpoint)"
     }
 
     @discardableResult

@@ -13,6 +13,20 @@ struct MenuView: View {
                 Text(statusText).font(.headline)
             }
 
+            if server.localNetworkDenied {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Local Network access is off, so your phone can't connect. Turn on MacDroid in System Settings → Privacy & Security → Local Network, then quit and reopen MacDroid.")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("Open Local Network settings") {
+                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_LocalNetwork") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+                }
+            }
+
             if presenter.authorized == false {
                 Text("Notifications are turned off for MacDroid. Turn them on in System Settings → Notifications → MacDroid.")
                     .font(.caption)
@@ -52,6 +66,17 @@ struct MenuView: View {
                     }
                 }
             }
+
+            DisclosureGroup("Connection log") {
+                ScrollView {
+                    Text(server.events.isEmpty ? "No events yet" : server.events.joined(separator: "\n"))
+                        .font(.system(size: 10, design: .monospaced))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(height: 120)
+            }
+            .font(.caption)
 
             Divider()
             HStack {
