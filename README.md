@@ -79,10 +79,11 @@ macOS is blocking MacDroid from the local network. The phone's connection arrive
 2. If MacDroid isn't listed, macOS never showed it the permission prompt. This is common with ad-hoc signed builds. Give it a stable signature:
    - In Xcode, open **Settings → Accounts**, add your Apple ID (a free account is fine), select it, choose **Manage Certificates…**, then **+ → Apple Development**.
    - Run `./build.sh --install` again. It picks up the certificate automatically ("Signing with: Apple Development: …"). Allow the Local Network prompt when it appears.
-3. Quick workaround without a certificate: start MacDroid from Terminal. It then shares Terminal's Local Network permission:
+3. Workaround without a certificate: run the relay from Terminal. Starting MacDroid itself from Terminal does **not** help, because macOS still treats it as its own app.
    ```bash
-   pkill -x MacDroid; /Applications/MacDroid.app/Contents/MacOS/MacDroid &
+   python3 tools/lan_relay.py
    ```
+   On the phone, keep the Mac's IP but set the port to **7320**. The relay forwards the connection to MacDroid over `127.0.0.1`, which the Local Network permission doesn't cover. Keep the Terminal window open while you use it.
 
 To check from the Mac itself, run this. It should print `HTTP/1.1 101 Switching Protocols`:
 ```bash
